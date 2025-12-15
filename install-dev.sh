@@ -62,6 +62,49 @@ echo "Installation prefix: $DEV_PREFIX"
 echo "Session directory:   $SESSION_DIR"
 echo
 
+# Check for required group memberships (needed for DRM access)
+check_group_membership() {
+    local user=$(whoami)
+    local missing_groups=()
+    
+    # Check video group (required for /dev/dri/card*)
+    if ! groups | grep -qw "video"; then
+        missing_groups+=("video")
+    fi
+    
+    # Check render group (required for /dev/dri/renderD*)
+    if ! groups | grep -qw "render"; then
+        missing_groups+=("render")
+    fi
+    
+    if [ ${#missing_groups[@]} -gt 0 ]; then
+        echo "WARNING: Missing required group memberships for GPU access!"
+        echo
+        echo "Your user ($user) needs to be in the following groups:"
+        for group in "${missing_groups[@]}"; do
+            echo "  - $group"
+        done
+        echo
+        echo "To fix this, run:"
+        for group in "${missing_groups[@]}"; do
+            echo "  sudo usermod -aG $group $user"
+        done
+        echo
+        echo "Then LOG OUT and log back in for the changes to take effect."
+        echo "(Group changes only apply to new login sessions)"
+        echo
+        read -p "Continue with installation anyway? [y/N] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Installation cancelled. Please add your user to the required groups first."
+            exit 1
+        fi
+        echo
+    fi
+}
+
+check_group_membership
+
 # Get the script directory (cosmic-epoch root)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -145,4 +188,9 @@ echo "  2. Re-run this script after building individual components to update"
 echo
 echo "To rebuild and install everything:"
 echo "  ./install-dev.sh --build"
+echo
+echo "Troubleshooting:"
+echo "  If the session crashes immediately, ensure your user is in 'video' and 'render' groups:"
+echo "    sudo usermod -aG video,render \$USER"
+echo "  Then log out completely and log back in."
 echo
